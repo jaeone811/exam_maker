@@ -120,11 +120,14 @@
       shell(meta, headerNormal("정답 및 해설", null), emptyCols(false), "");
     await waitAssets(host);
     const cins = host.querySelectorAll(".col-in");
+    // clientWidth는 정수로 반올림돼서 실제 단보다 넓게 잴 수 있음 → 소수점까지 재고 살짝 좁게
+    const rw = (el) => el.getBoundingClientRect().width;
+    const rh = (el) => el.getBoundingClientRect().height;
     const g = {
-      h1: cins[0].clientHeight,
-      h2: cins[2].clientHeight,
-      h3: cins[4].clientHeight,
-      w: cins[0].clientWidth,
+      h1: rh(cins[0]),
+      h2: rh(cins[2]),
+      h3: rh(cins[4]),
+      w: Math.min(rw(cins[0]), rw(cins[1])) - 0.05,
     };
     host.innerHTML = "";
     return g;
@@ -322,9 +325,29 @@
               : `<div class="blk${e.over ? " overflow" : ""}${e.it.id && e.it.id === selId ? " sel" : ""}"${e.it.id ? ` data-qid="${e.it.id}"` : ""} style="top:${e.top.toFixed(2)}px">${e.it.html}</div>`
         )
         .join("");
+    // 상자 지문: 단마다 이어지는 덩어리를 하나의 테두리로 감쌈 (단이 바뀌면 거기서 닫고 다시 엶)
+    const frames = (list) => {
+      let html = "";
+      const pad = 1.2 * MM;
+      for (let i = 0; i < list.length; i++) {
+        if (!list[i].it.boxed) continue;
+        let j = i;
+        while (j + 1 < list.length && list[j + 1].it.boxed && list[j + 1].it.id === list[i].it.id) j++;
+        const a = list[i];
+        const z = list[j];
+        let top = a.top;
+        if (a.clipTop || !/bx-first/.test(a.it.html)) top -= pad; // 이어지는 부분은 위를 살짝 띄움
+        let bottom = z.top + (z.clipH != null ? z.clipH : z.it.h);
+        const ended = /bx-last/.test(z.it.html) && (z.clipH == null || z.clipTop + z.clipH >= z.it.h - 0.5);
+        if (!ended) bottom += pad;
+        html += `<div class="bxframe" style="top:${top.toFixed(2)}px;height:${(bottom - top).toFixed(2)}px"></div>`;
+        i = j;
+      }
+      return html;
+    };
     const notice = pg.notice ? `<div class="blk" style="top:auto;bottom:0">${pg.notice.html}</div>` : "";
-    if (single) return `<div class="col l"><div class="col-in">${colInner(pg.cols[0])}${notice}</div></div>`;
-    return `<div class="col l"><div class="col-in">${colInner(pg.cols[0])}</div></div><div class="col r"><div class="col-in">${colInner(pg.cols[1])}${notice}</div></div>`;
+    if (single) return `<div class="col l"><div class="col-in">${colInner(pg.cols[0])}${frames(pg.cols[0])}${notice}</div></div>`;
+    return `<div class="col l"><div class="col-in">${colInner(pg.cols[0])}${frames(pg.cols[0])}</div></div><div class="col r"><div class="col-in">${colInner(pg.cols[1])}${frames(pg.cols[1])}${notice}</div></div>`;
   }
 
   /* ---------- 번호 매기기 ---------- */
@@ -394,10 +417,14 @@
           const head = `<div class="psg-head">${inline(passageHeading(q, ranges[q.id]), { bigInline: meta.bigInline })}</div>`;
           const chunks = renderPassage(q.text, { images: q.images || {}, overlays: q.overlays || {}, bigInline: meta.bigInline, indent: q.indent !== false });
           if (meta.layout === "slots") {
-            all.push({ si, q, html: `<div class="psg">${head}${chunks.map((c) => c.html).join("")}</div>` });
+            const body = chunks.map((c) => c.html).join("");
+            all.push({ si, q, html: `<div class="psg">${head}${q.box ? `<div class="psgbox">${body}</div>` : body}</div>` });
           } else {
             all.push({ si, q, html: `<div class="psg">${head}</div>`, keepNext: true, gapAfter: 0, psg: true });
-            chunks.forEach((c, k) => all.push({ si, q, html: `<div class="psg">${c.html}</div>`, split: true, gapAfter: k === chunks.length - 1 ? null : 0, psg: true }));
+            chunks.forEach((c, k) => {
+              const cls = q.box ? ` bxd${k === 0 ? " bx-first" : ""}${k === chunks.length - 1 ? " bx-last" : ""}` : "";
+              all.push({ si, q, html: `<div class="psg${cls}">${c.html}</div>`, split: true, gapAfter: k === chunks.length - 1 ? null : 0, psg: true, boxed: !!q.box });
+            });
           }
           return;
         }
@@ -429,6 +456,7 @@
           gapAfter: a.gapAfter,
           split: a.split,
           psg: a.psg,
+          boxed: a.boxed,
         });
       });
       const pages = paginate(items, geo, meta, { notice: meta.showNotice ? noticeH[si] : null });

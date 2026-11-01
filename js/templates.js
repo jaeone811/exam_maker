@@ -15,7 +15,7 @@
   }
   /** 지문 (국어 등): 번호 없이 뒤따르는 문항들에 묶임 */
   function passage(over) {
-    return Object.assign({ id: uid("p"), kind: "passage", heading: "", count: "", indent: true, text: "", breakBefore: "", slots: "", images: {}, overlays: {} }, over || {});
+    return Object.assign({ id: uid("p"), kind: "passage", heading: "", count: "", indent: true, box: false, text: "", breakBefore: "", slots: "", images: {}, overlays: {} }, over || {});
   }
   function sec(over) {
     return Object.assign({ id: uid("s"), name: "공통", subtitle: "", startNo: "", restartPage: true, include: true, questions: [] }, over || {});

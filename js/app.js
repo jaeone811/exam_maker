@@ -324,7 +324,7 @@
         <label class="field"><span>묶을 문항 수</span><input type="number" id="pCount" min="1" value="${esc(q.count)}" placeholder="다음 지문 전까지"></label>
         <label class="field"><span>시작 위치</span><select id="qBreak">
           <option value="">자동</option><option value="column"${q.breakBefore === "column" ? " selected" : ""}>다음 단에서</option><option value="page"${q.breakBefore === "page" ? " selected" : ""}>다음 쪽에서</option></select></label>
-        <div class="field"><label class="check"><input type="checkbox" id="pIndent" ${q.indent !== false ? "checked" : ""}> 문단 첫 줄 들여쓰기</label></div>
+        <div class="field"><label class="check"><input type="checkbox" id="pIndent" ${q.indent !== false ? "checked" : ""}> 문단 첫 줄 들여쓰기</label><label class="check"><input type="checkbox" id="pBox" ${q.box ? "checked" : ""}> 지문을 상자로 감싸기</label></div>
       </div>
       <div class="field"><span>지문 <span class="muted" style="font-weight:400">— 한 줄 = 한 문단, 빈 줄 = 문단 사이 띄움(시의 연 구분 등). 시는 들여쓰기를 끄셈</span></span></div>
       ${toolbarHtml(true)}
@@ -370,6 +370,7 @@
     else if (t.id === "pHead") q.heading = t.value;
     else if (t.id === "pCount") q.count = t.value === "" ? "" : Number(t.value);
     else if (t.id === "pIndent") q.indent = t.checked;
+    else if (t.id === "pBox") q.box = t.checked;
     else return;
     changed();
   });

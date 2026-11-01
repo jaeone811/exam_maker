@@ -313,6 +313,13 @@ table.t.full { width: 100%; }
 .p.pp + .p.pp { margin-top: 0; }
 .p.pp.gap { margin-top: 0.8em; }
 .frag { overflow: hidden; }
+
+/* 상자로 감싼 지문 */
+.psg.bxd { padding: 0 3mm; }
+.psg.bxd.bx-first { padding-top: 2mm; }
+.psg.bxd.bx-last { padding-bottom: 2mm; }
+.bxframe { position: absolute; left: 0; right: 0; border: 0.25mm solid #000; pointer-events: none; }
+.psgbox { border: 0.25mm solid #000; padding: 2mm 3mm; }
 .fig .cap { font-size: 0.92em; margin-top: 0.5mm; text-align: center; }
 .fig .missing { display: inline-block; border: 0.3mm dashed #999; color: #999; padding: 6mm 4mm; font-size: 9pt; }
 
