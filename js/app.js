@@ -202,7 +202,7 @@
     ["E(X)", "\\mathrm{E}(X)"],
     ["로마체", "\\mathrm{A}"],
   ];
-  const SYMBOLS = ["㉠", "㉡", "㉢", "㉣", "㉤", "(가)", "(나)", "(다)", "(라)", "ㄱ.", "ㄴ.", "ㄷ.", "◦", "※", "①", "②", "③", "④", "⑤", "□", "△", "∼", "·", "…"];
+  const SYMBOLS = ["㉠", "㉡", "㉢", "㉣", "㉤", "(가)", "(나)", "(다)", "(라)", "ㄱ.", "ㄴ.", "ㄷ.", "ㄹ.", "ㅁ.", "◦", "※", "①", "②", "③", "④", "⑤", "□", "△", "∼", "·", "…"];
 
   function renderEditor() {
     const ed = $("#editor");
@@ -255,8 +255,8 @@
         q.type === "mc"
           ? `<div class="field" style="margin-top:12px"><span>선택지 · 정답 (오른쪽 동그라미)</span></div>
              <div class="choice-grid">${choiceRows}</div>
+             ${bogiToolHtml(q)}
              <div class="row" style="margin-top:6px">
-               <button type="button" class="sm" id="fillBogi">ㄱㄴㄷ 조합 채우기</button>
                <button type="button" class="sm" id="fillNum">연속 정수 채우기</button>
                <button type="button" class="sm" id="wrapMath">모두 수식으로 감싸기</button>
              </div>`
@@ -270,6 +270,106 @@
     `;
   }
 
+
+  /* ---------- <보기> 조합 도우미 (ㄱㄴㄷ / ㄱㄴㄷㄹ / ㄱ~ㅁ) ---------- */
+  const LETTERS = ["ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ"];
+  // 자주 쓰는 선택지 짜임. 문제마다 다르니 고른 뒤 표에서 고치면 됨
+  const BOGI_PRESETS = [
+    { n: 3, name: "ㄱㄴㄷ · 있는 대로 고르기 (ㄱ / ㄴ / ㄱ,ㄷ / ㄴ,ㄷ / ㄱ,ㄴ,ㄷ)", c: ["ㄱ", "ㄴ", "ㄱㄷ", "ㄴㄷ", "ㄱㄴㄷ"] },
+    { n: 3, name: "ㄱㄴㄷ · (ㄱ / ㄷ / ㄱ,ㄴ / ㄴ,ㄷ / ㄱ,ㄴ,ㄷ)", c: ["ㄱ", "ㄷ", "ㄱㄴ", "ㄴㄷ", "ㄱㄴㄷ"] },
+    { n: 3, name: "ㄱㄴㄷ · (ㄱ / ㄴ / ㄷ / ㄱ,ㄴ / ㄱ,ㄷ)", c: ["ㄱ", "ㄴ", "ㄷ", "ㄱㄴ", "ㄱㄷ"] },
+    { n: 4, name: "ㄱㄴㄷㄹ · 두 개씩 (ㄱ,ㄴ / ㄱ,ㄷ / ㄴ,ㄷ / ㄴ,ㄹ / ㄷ,ㄹ)", c: ["ㄱㄴ", "ㄱㄷ", "ㄴㄷ", "ㄴㄹ", "ㄷㄹ"] },
+    { n: 4, name: "ㄱㄴㄷㄹ · 두세 개 (ㄱ,ㄴ / ㄱ,ㄷ / ㄴ,ㄹ / ㄱ,ㄷ,ㄹ / ㄴ,ㄷ,ㄹ)", c: ["ㄱㄴ", "ㄱㄷ", "ㄴㄹ", "ㄱㄷㄹ", "ㄴㄷㄹ"] },
+    { n: 4, name: "ㄱㄴㄷㄹ · (ㄱ,ㄴ / ㄱ,ㄹ / ㄷ,ㄹ / ㄱ,ㄴ,ㄷ / ㄴ,ㄷ,ㄹ)", c: ["ㄱㄴ", "ㄱㄹ", "ㄷㄹ", "ㄱㄴㄷ", "ㄴㄷㄹ"] },
+  ];
+
+  /** 선택지 글자가 "ㄱ, ㄷ" 같은 조합이면 글자 배열, 아니면 null */
+  function comboOf(text) {
+    const t = String(text || "").trim();
+    if (!t || !/^[ㄱ-ㅎ\s,，·]+$/.test(t)) return null;
+    return LETTERS.filter((l) => t.includes(l));
+  }
+  const comboText = (letters) => LETTERS.filter((l) => letters.includes(l)).join(", ");
+
+  /** 본문 <보기>에서 쓰인 기호 수 (ㄹ. 줄이 있으면 4) */
+  function bogiCount(q) {
+    if (Number(q.bogiN) >= 3) return Number(q.bogiN);
+    let n = 0;
+    LETTERS.forEach((l, i) => {
+      if (new RegExp("^\\s*" + l + "\\.", "m").test(q.text || "")) n = Math.max(n, i + 1);
+    });
+    q.choices.forEach((c) => (comboOf(c) || []).forEach((l) => (n = Math.max(n, LETTERS.indexOf(l) + 1))));
+    return Math.max(3, Math.min(5, n || 3));
+  }
+
+  function bogiResult(q) {
+    const truth = Array.isArray(q.bogiTrue) ? q.bogiTrue : null;
+    const keys = q.choices.slice(0, 5).map((c) => {
+      const cb = comboOf(c);
+      return cb ? cb.join("") : null;
+    });
+    const dup = [];
+    keys.forEach((k, i) => {
+      if (k && keys.indexOf(k) !== i) dup.push(`${CIRC[keys.indexOf(k)]}, ${CIRC[i]}`);
+    });
+    let msg = dup.length ? `⚠ 같은 선택지가 있음: ${dup.join(" / ")}` : "";
+    let ans = null;
+    if (truth && truth.length) {
+      const want = LETTERS.filter((l) => truth.includes(l)).join("");
+      const idx = keys.indexOf(want);
+      if (idx >= 0) {
+        ans = idx + 1;
+        msg = `정답 ${CIRC[idx]} (${comboText(truth)})` + (msg ? " · " + msg : "");
+      } else msg = `⚠ 옳은 것(${comboText(truth)})과 같은 선택지가 없음` + (msg ? " · " + msg : "");
+    }
+    return { ans, msg };
+  }
+
+  function bogiToolHtml(q) {
+    const n = bogiCount(q);
+    const letters = LETTERS.slice(0, n);
+    const isCombo = q.choices.some((c) => comboOf(c)) || /\[보기/.test(q.text || "");
+    const truth = Array.isArray(q.bogiTrue) ? q.bogiTrue : [];
+    const rows = q.choices
+      .slice(0, 5)
+      .map((c, i) => {
+        const cb = comboOf(c) || [];
+        return `<tr><th>${CIRC[i]}</th>${letters.map((l) => `<td><input type="checkbox" data-bg-r="${i}" data-bg-l="${l}" ${cb.includes(l) ? "checked" : ""} aria-label="${CIRC[i]} ${l}"></td>`).join("")}</tr>`;
+      })
+      .join("");
+    const res = bogiResult(q);
+    return `<details class="bogi-tool" ${isCombo ? "open" : ""}>
+      <summary>&lt;보기&gt; 조합 도우미 (ㄱㄴㄷ · ㄱㄴㄷㄹ)</summary>
+      <div class="row" style="margin:8px 0">
+        <label class="field" style="flex:0 0 auto;min-width:0"><span>기호</span><select id="bgN">${[3, 4, 5].map((k) => `<option value="${k}"${k === n ? " selected" : ""}>${LETTERS.slice(0, k).join("")}</option>`).join("")}</select></label>
+        <label class="field"><span>선택지 틀</span><select id="bgPreset"><option value="">고르면 ①~⑤가 채워짐…</option>${BOGI_PRESETS.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join("")}</select></label>
+      </div>
+      <table class="bg-grid">
+        <tr><th></th>${letters.map((l) => `<th>${l}</th>`).join("")}</tr>
+        ${rows}
+        <tr class="truth"><th title="보기에서 옳은 진술">옳은 것</th>${letters.map((l) => `<td><input type="checkbox" data-bg-t="${l}" ${truth.includes(l) ? "checked" : ""} aria-label="${l} 옳음"></td>`).join("")}</tr>
+      </table>
+      <p class="hint" id="bgMsg" style="margin:6px 0 0">${res.msg ? esc(res.msg) : "체크하면 선택지가 바로 바뀜. 맨 아래 '옳은 것'을 체크하면 정답 번호를 자동으로 고름."}</p>
+    </details>`;
+  }
+
+  /** 도우미에서 바꾼 내용을 화면 입력칸·정답에 반영 (편집기 전체를 다시 그리지 않음) */
+  function syncBogi(q) {
+    q.choices.slice(0, 5).forEach((c, i) => {
+      const inp = document.getElementById("ch" + i);
+      if (inp && inp.value !== c) inp.value = c;
+    });
+    const res = bogiResult(q);
+    if (res.ans) {
+      q.answer = res.ans;
+      const r = document.getElementById("ans" + (res.ans - 1));
+      if (r) r.checked = true;
+    }
+    const m = document.getElementById("bgMsg");
+    if (m) m.textContent = res.msg || "체크하면 선택지가 바로 바뀜. 맨 아래 '옳은 것'을 체크하면 정답 번호를 자동으로 고름.";
+    changed();
+  }
+
   function toolbarHtml(passage) {
     return `<div class="toolbar" id="tb">
         <button type="button" data-w="$|$" title="선택한 글자를 수식으로">$수식$</button>
@@ -277,7 +377,8 @@
         <select id="snip" title="수식 조각 넣기"><option value="">수식 조각…</option>${SNIPPETS.map((s, i) => `<option value="${i}">${esc(s[0])}  ${esc(s[1])}</option>`).join("")}</select>
         <span class="sep"></span>
         <button type="button" data-blk="[조건]\n(가) |\n(나) \n[/조건]">조건 상자</button>
-        <button type="button" data-blk="[보기]\nㄱ. |\nㄴ. \nㄷ. \n[/보기]">&lt;보기&gt;</button>
+        <button type="button" data-blk="[보기]\nㄱ. |\nㄴ. \nㄷ. \n[/보기]">&lt;보기&gt; ㄱㄴㄷ</button>
+        <button type="button" data-blk="[보기]\nㄱ. |\nㄴ. \nㄷ. \nㄹ. \n[/보기]">&lt;보기&gt; ㄱㄴㄷㄹ</button>
         <button type="button" data-blk="[박스 자료 제목]\n|\n[/박스]">자료 상자</button>
         <button type="button" data-blk="[표 머리]\n구분 | A | B\n| 1 | 2\n[/표]">표</button>
         <button type="button" data-blk="[나란히]\n|\n[|]\n\n[/나란히]">나란히</button>
@@ -368,8 +469,24 @@
     else if (t.id === "qSol") q.solution = t.value;
     else if (t.id === "qPts") q.points = t.value === "" ? "" : Number(t.value);
     else if (t.id === "qAns") q.answer = t.value;
-    else if (t.dataset.ch != null) q.choices[+t.dataset.ch] = t.value;
+    else if (t.dataset.ch != null) {
+      q.choices[+t.dataset.ch] = t.value;
+      const cb = comboOf(t.value);
+      const box = document.querySelectorAll(`[data-bg-r="${t.dataset.ch}"]`);
+      box.forEach((x) => (x.checked = !!cb && cb.includes(x.dataset.bgL)));
+      if (box.length) return syncBogi(q);
+    }
     else if (t.name === "ans") q.answer = Number(t.value);
+    else if (t.dataset.bgR != null) {
+      const cur = comboOf(q.choices[+t.dataset.bgR]) || [];
+      const next = t.checked ? cur.concat(t.dataset.bgL) : cur.filter((l) => l !== t.dataset.bgL);
+      q.choices[+t.dataset.bgR] = comboText(next);
+      return syncBogi(q);
+    } else if (t.dataset.bgT != null) {
+      const cur = Array.isArray(q.bogiTrue) ? q.bogiTrue : [];
+      q.bogiTrue = t.checked ? cur.concat(t.dataset.bgT) : cur.filter((l) => l !== t.dataset.bgT);
+      return syncBogi(q);
+    }
     else if (t.id === "pHead") q.heading = t.value;
     else if (t.id === "pCount") q.count = t.value === "" ? "" : Number(t.value);
     else if (t.id === "pIndent") q.indent = t.checked;
@@ -385,6 +502,20 @@
     if (t.id === "qType") {
       q.type = t.value;
       if (q.type === "short" && typeof q.answer === "number") q.answer = "";
+      renderEditor();
+      changed();
+    } else if (t.id === "bgN") {
+      q.bogiN = Number(t.value);
+      const keep = LETTERS.slice(0, q.bogiN);
+      if (Array.isArray(q.bogiTrue)) q.bogiTrue = q.bogiTrue.filter((l) => keep.includes(l));
+      renderEditor();
+      changed();
+    } else if (t.id === "bgPreset" && t.value !== "") {
+      const pr = BOGI_PRESETS[+t.value];
+      q.bogiN = Math.max(pr.n, Number(q.bogiN) || 0);
+      q.choices = pr.c.map((k) => comboText(k.split("")));
+      const res = bogiResult(q);
+      if (res.ans) q.answer = res.ans;
       renderEditor();
       changed();
     } else if (t.id === "qBreak") {
@@ -439,10 +570,6 @@
     } else if (b.dataset.imgdel) {
       delete q.images[b.dataset.imgdel];
       if (q.overlays) delete q.overlays[b.dataset.imgdel];
-      renderEditor();
-      changed();
-    } else if (b.id === "fillBogi") {
-      q.choices = ["ㄱ", "ㄴ", "ㄱ, ㄷ", "ㄴ, ㄷ", "ㄱ, ㄴ, ㄷ"];
       renderEditor();
       changed();
     } else if (b.id === "fillNum") {

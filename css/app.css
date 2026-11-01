@@ -192,6 +192,16 @@ dialog::backdrop { background: rgba(20, 24, 30, .45); }
 .tpl span { font-size: 12px; color: var(--muted); }
 .dlg-actions { display: flex; justify-content: flex-end; }
 
+/* <보기> 조합 도우미 */
+.bogi-tool { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 10px; background: var(--panel-2); }
+.bogi-tool summary { cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 2px 0; }
+.bogi-tool select { max-width: 100%; }
+.bg-grid { border-collapse: collapse; font-size: 13px; background: #fff; }
+.bg-grid th, .bg-grid td { border: 1px solid var(--line); padding: 3px 9px; text-align: center; }
+.bg-grid th { font-weight: 600; background: var(--panel-2); }
+.bg-grid tr.truth th, .bg-grid tr.truth td { background: #eef6f0; }
+.bg-grid input { accent-color: var(--accent); margin: 0; }
+
 /* 그림에 글 넣기 */
 dialog.ov-dialog { width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
 .ovd { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
