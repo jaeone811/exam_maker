@@ -254,6 +254,65 @@ table.t.full { width: 100%; }
 .fig.left { text-align: left; }
 .fig.right { text-align: right; }
 .fig img { max-width: 100%; display: inline-block; vertical-align: top; }
+.figbox { display: inline-block; position: relative; vertical-align: top; max-width: 100%; }
+.figbox > img { width: 100%; display: block; }
+.ov {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.38;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  letter-spacing: -0.01em;
+  text-indent: 0;
+}
+.ov > div { width: 100%; }
+
+/* 대화 (말풍선) */
+.talk { display: grid; gap: 1.6mm; margin: 2.2mm 0; }
+.tk { display: flex; align-items: flex-start; gap: 2.4mm; }
+.tk.rt { flex-direction: row-reverse; }
+.tk .who {
+  flex: none;
+  min-width: 6.5mm;
+  height: 6.5mm;
+  border: 0.25mm solid #000;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.92em;
+  line-height: 1;
+  padding: 0 0.6mm;
+  margin-top: 0.4mm;
+}
+.tk .bub {
+  position: relative;
+  border: 0.25mm solid #000;
+  border-radius: 2.4mm;
+  padding: 1.2mm 2.4mm;
+  min-width: 0;
+}
+.tk .bub::before {
+  content: "";
+  position: absolute;
+  left: -1.55mm;
+  top: 2.2mm;
+  width: 2.6mm;
+  height: 2.6mm;
+  background: #fff;
+  border-left: 0.25mm solid #000;
+  border-bottom: 0.25mm solid #000;
+  transform: rotate(45deg);
+}
+.tk.rt .bub::before { left: auto; right: -1.55mm; transform: rotate(-135deg); }
+
+/* 국어 지문 */
+.psg-head { margin-bottom: 1.2mm; }
+.pp { text-indent: 1em; text-align: justify; }
+.pp.noind { text-indent: 0; }
+.p.pp + .p.pp { margin-top: 0; }
+.p.pp.gap { margin-top: 0.8em; }
+.frag { overflow: hidden; }
 .fig .cap { font-size: 0.92em; margin-top: 0.5mm; text-align: center; }
 .fig .missing { display: inline-block; border: 0.3mm dashed #999; color: #999; padding: 6mm 4mm; font-size: 9pt; }
 

@@ -62,11 +62,27 @@
   </form>
 </dialog>
 
+<!-- 그림에 글 넣기 -->
+<dialog id="dlgOv" class="ov-dialog">
+  <div class="ovd">
+    <div class="ovd-head">
+      <h2 id="ovTitle">그림에 글 넣기</h2>
+      <span class="muted">말풍선 위에 글상자를 놓고 글을 쓰면 시험지에 그대로 찍힘</span>
+      <button type="button" id="ovDone" class="primary">완료</button>
+    </div>
+    <div class="ovd-body">
+      <div class="ovd-stage-wrap" id="ovWrap"><div class="ovd-sizer"><div id="ovScaler"><div id="ovStage" class="page"></div></div></div></div>
+      <div class="ovd-side" id="ovSide"></div>
+    </div>
+  </div>
+</dialog>
+
 <div id="measure" aria-hidden="true"></div>
 
 <script src="js/markup.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/templates.js"></script>
+<script src="js/overlay.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

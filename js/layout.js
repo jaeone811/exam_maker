@@ -3,7 +3,9 @@
    ========================================================= */
 (function (global) {
   "use strict";
-  const { renderBody, inline, esc } = global.ExamMarkup;
+  const { renderBody, renderPassage, inline, esc } = global.ExamMarkup;
+  const isQ = (q) => q.kind !== "passage";
+  let lastGeo = null;
   const MM = 96 / 25.4;
   const CIRC = ["①", "②", "③", "④", "⑤", "⑥", "⑦"];
 
@@ -24,10 +26,10 @@
   }
 
   function questionHtml(q, no, meta, label) {
-    const body = renderBody(q.text, { number: no, points: fmtPoints(q.points, meta), images: q.images || {}, bigInline: meta.bigInline });
+    const body = renderBody(q.text, { number: no, points: fmtPoints(q.points, meta), images: q.images || {}, overlays: q.overlays || {}, bigInline: meta.bigInline });
     let choices = "";
     if (q.type === "mc") {
-      const opts = { images: q.images || {}, bigInline: meta.bigInline };
+      const opts = { images: q.images || {}, overlays: q.overlays || {}, bigInline: meta.bigInline };
       choices =
         `<div class="choices measuring">` +
         choiceList(q)
@@ -130,7 +132,7 @@
 
   async function measureBlocks(host, meta, w, htmls) {
     host.innerHTML = `<div class="page" style="${pageStyle(meta)};height:auto;width:auto;padding:0;display:block"><div class="mcol" style="width:${w}px">${htmls
-      .map((h) => `<div class="blk" style="position:static">${h}</div>`)
+      .map((h) => `<div class="blk" style="position:static;display:flow-root">${h}</div>`)
       .join("")}</div></div>`;
     await waitAssets(host);
     const gap = 2 * MM;
@@ -149,9 +151,37 @@
       el.classList.add(cls);
     });
     const blks = Array.from(host.querySelectorAll(".mcol > .blk"));
-    const res = blks.map((b) => ({ h: b.getBoundingClientRect().height, html: b.innerHTML }));
+    const res = blks.map((b) => ({ h: b.getBoundingClientRect().height, html: b.innerHTML, cuts: lineCuts(b) }));
     host.innerHTML = "";
     return res;
+  }
+
+  /** 블록 안 글줄 사이의 자를 수 있는 위치(px). 지문을 단 사이에서 나눌 때 씀 */
+  function lineCuts(el) {
+    const base = el.getBoundingClientRect().top;
+    const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const rects = [];
+    const range = document.createRange();
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+      if (!n.nodeValue.trim()) continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.height > 0 && r.width > 0) rects.push({ t: r.top - base, b: r.bottom - base });
+    }
+    // 그림·표 같은 통째 요소는 자르면 안 되므로 그 영역은 한 덩어리로 취급
+    el.querySelectorAll("img, table, .box, .fig, .side, .talk, .dmath").forEach((x) => {
+      const r = x.getBoundingClientRect();
+      rects.push({ t: r.top - base, b: r.bottom - base });
+    });
+    rects.sort((a, b) => a.t - b.t);
+    const lines = [];
+    rects.forEach((r) => {
+      const last = lines[lines.length - 1];
+      if (last && r.t < last.b - 1.5) last.b = Math.max(last.b, r.b);
+      else lines.push({ t: r.t, b: r.b });
+    });
+    const cuts = [];
+    for (let k = 0; k < lines.length - 1; k++) cuts.push((lines[k].b + lines[k + 1].t) / 2);
+    return cuts;
   }
 
   /* ---------- 배치 ---------- */
@@ -181,7 +211,7 @@
     newPage(opts.firstHeader !== false);
     const empty = () => y === 0 && slot === 0;
 
-    items.forEach((it) => {
+    items.forEach((it, idx) => {
       if (it.breakBefore === "page" && !(empty() && col === 0)) newPage(false);
       else if (it.breakBefore === "column" && !empty()) nextCol();
 
@@ -204,11 +234,48 @@
         slot += n;
         y = slot * sH;
       } else {
-        const H = colH();
-        if (y > 0 && y + it.h > H + 0.5) nextCol();
+        const gapOf = it.gapAfter != null ? it.gapAfter : gap;
+        // 지문 머리말은 다음 내용 두어 줄과 같은 단에
+        if (it.keepNext && y > 0) {
+          const nx = items[idx + 1];
+          const need = it.h + (nx ? Math.min(nx.h, (nx.cuts && nx.cuts[1]) || nx.h) : 0);
+          if (y + need > colH() + 0.5) nextCol();
+        }
+        if (it.split && it.cuts && it.cuts.length && y + it.h > colH() + 0.5) {
+          // 글줄 단위로 잘라서 다음 단·쪽에 이어 싣기
+          let off = 0;
+          for (let guard = 0; guard < 200; guard++) {
+            const room = colH() - y;
+            const rest = it.h - off;
+            if (rest <= room + 0.5) {
+              page.cols[col].push({ it, top: y, clipTop: off, clipH: rest });
+              y += rest + gapOf;
+              break;
+            }
+            let c = null;
+            it.cuts.forEach((cut) => {
+              if (cut > off + 1 && cut - off <= room) c = cut;
+            });
+            if (c == null) {
+              if (y === 0) {
+                page.cols[col].push({ it, top: 0, clipTop: off, clipH: rest, over: true });
+                y = rest + gapOf;
+                break;
+              }
+              nextCol();
+              continue;
+            }
+            page.cols[col].push({ it, top: y, clipTop: off, clipH: c - off });
+            off = c;
+            nextCol();
+          }
+          slot = 1;
+          return;
+        }
+        if (y > 0 && y + it.h > colH() + 0.5) nextCol();
         const H2 = colH();
         page.cols[col].push({ it, top: y, over: it.h > H2 + 1 });
-        y += it.h + gap;
+        y += it.h + gapOf;
         slot = 1;
       }
     });
@@ -217,7 +284,7 @@
     if (!slotMode && meta.justify !== false) {
       pages.forEach((pg) => {
         pg.cols.forEach((list, ci) => {
-          if (!pg.full[ci] || list.length < 2) return;
+          if (!pg.full[ci] || list.length < 2 || list.some((e) => e.it.psg)) return;
           const H = pg.first ? geo.h1 : opts.hNormal || geo.h2;
           const used = list.reduce((s, e) => s + e.it.h, 0) + gap * (list.length - 1);
           const extra = Math.min((H - used) / (list.length - 1), 30 * MM);
@@ -250,7 +317,9 @@
       list
         .map(
           (e) =>
-            `<div class="blk${e.over ? " overflow" : ""}${e.it.id && e.it.id === selId ? " sel" : ""}"${e.it.id ? ` data-qid="${e.it.id}"` : ""} style="top:${e.top.toFixed(2)}px">${e.it.html}</div>`
+            e.clipH != null
+              ? `<div class="blk frag${e.over ? " overflow" : ""}${e.it.id && e.it.id === selId ? " sel" : ""}"${e.it.id ? ` data-qid="${e.it.id}"` : ""} style="top:${e.top.toFixed(2)}px;height:${e.clipH.toFixed(2)}px"><div style="margin-top:${(-e.clipTop).toFixed(2)}px">${e.it.html}</div></div>`
+              : `<div class="blk${e.over ? " overflow" : ""}${e.it.id && e.it.id === selId ? " sel" : ""}"${e.it.id ? ` data-qid="${e.it.id}"` : ""} style="top:${e.top.toFixed(2)}px">${e.it.html}</div>`
         )
         .join("");
     const notice = pg.notice ? `<div class="blk" style="top:auto;bottom:0">${pg.notice.html}</div>` : "";
@@ -264,10 +333,38 @@
     let n = 0;
     sections.forEach((sec) => {
       const start = Number(sec.startNo) > 0 ? Number(sec.startNo) : n + 1;
-      sec.questions.forEach((q, i) => (map[q.id] = start + i));
-      n = start + sec.questions.length - 1;
+      let i = 0;
+      sec.questions.forEach((q) => {
+        if (isQ(q)) map[q.id] = start + i++;
+      });
+      n = start + i - 1;
     });
     return map;
+  }
+
+  /** 지문마다 묶인 문항 번호 범위 {지문id: [처음, 끝]} */
+  function passageRanges(sections, nums) {
+    const out = {};
+    sections.forEach((sec) => {
+      sec.questions.forEach((p, i) => {
+        if (isQ(p)) return;
+        const limit = Number(p.count) > 0 ? Number(p.count) : Infinity;
+        const got = [];
+        for (let j = i + 1; j < sec.questions.length && got.length < limit; j++) {
+          const q = sec.questions[j];
+          if (!isQ(q)) break;
+          got.push(nums[q.id]);
+        }
+        out[p.id] = got.length ? [got[0], got[got.length - 1]] : null;
+      });
+    });
+    return out;
+  }
+
+  function passageHeading(p, range) {
+    const r = range ? (range[0] === range[1] ? `[${range[0]}]` : `[${range[0]}～${range[1]}]`) : "[ ]";
+    const tpl = (p.heading || "").trim() || "{범위} 다음 글을 읽고 물음에 답하시오.";
+    return tpl.includes("{범위}") ? tpl.replace("{범위}", r) : tpl;
   }
 
   function answerText(q) {
@@ -283,7 +380,9 @@
     const meta = state.meta;
     const secs = state.sections.filter((s) => s.include !== false);
     const nums = numbering(state.sections);
+    const ranges = passageRanges(state.sections, nums);
     const geo = await geometry(host, meta);
+    lastGeo = geo;
     const warnings = [];
 
     // 1) 문항 HTML 생성 + 실측
@@ -291,6 +390,17 @@
     secs.forEach((sec, si) => {
       let prevType = null;
       sec.questions.forEach((q) => {
+        if (!isQ(q)) {
+          const head = `<div class="psg-head">${inline(passageHeading(q, ranges[q.id]), { bigInline: meta.bigInline })}</div>`;
+          const chunks = renderPassage(q.text, { images: q.images || {}, overlays: q.overlays || {}, bigInline: meta.bigInline, indent: q.indent !== false });
+          if (meta.layout === "slots") {
+            all.push({ si, q, html: `<div class="psg">${head}${chunks.map((c) => c.html).join("")}</div>` });
+          } else {
+            all.push({ si, q, html: `<div class="psg">${head}</div>`, keepNext: true, gapAfter: 0, psg: true });
+            chunks.forEach((c, k) => all.push({ si, q, html: `<div class="psg">${c.html}</div>`, split: true, gapAfter: k === chunks.length - 1 ? null : 0, psg: true }));
+          }
+          return;
+        }
         let label = null;
         if (meta.autoTypeLabel && q.type !== prevType) label = q.type === "mc" ? meta.mcLabel || "5지선다형" : meta.shortLabel || "단답형";
         prevType = q.type;
@@ -307,13 +417,25 @@
       const items = [];
       all.forEach((a, k) => {
         if (a.si !== si) return;
-        items.push({ id: a.q.id, h: measured[k].h, html: measured[k].html, breakBefore: a.q.breakBefore || "", slots: a.q.slots || "" });
+        const first = k === 0 || all[k - 1].q !== a.q;
+        items.push({
+          id: a.q.id,
+          h: measured[k].h,
+          html: measured[k].html,
+          cuts: measured[k].cuts,
+          breakBefore: first ? a.q.breakBefore || "" : "",
+          slots: a.q.slots || "",
+          keepNext: a.keepNext,
+          gapAfter: a.gapAfter,
+          split: a.split,
+          psg: a.psg,
+        });
       });
       const pages = paginate(items, geo, meta, { notice: meta.showNotice ? noticeH[si] : null });
       pages.forEach((pg) =>
         pg.cols.forEach((l) =>
           l.forEach((e) => {
-            if (e.over) warnings.push(`${nums[e.it.id]}번 문항이 한 단보다 길어서 잘립니다. 그림을 줄이거나 내용을 나눠 주세요.`);
+            if (e.over) warnings.push(nums[e.it.id] ? `${nums[e.it.id]}번 문항이 한 단보다 길어서 잘립니다. 그림을 줄이거나 내용을 나눠 주세요.` : `지문 안의 그림·표가 한 단보다 커서 잘립니다. 크기를 줄여 주세요.`);
           })
         )
       );
@@ -344,8 +466,8 @@
       const solItems = [];
       const solHtml = [];
       secs.forEach((sec) =>
-        sec.questions.forEach((q) => {
-          const body = q.solution ? renderBody(q.solution, { images: q.images || {}, bigInline: meta.bigInline }) : '<div class="p" style="color:#888">(해설 없음)</div>';
+        sec.questions.filter(isQ).forEach((q) => {
+          const body = q.solution ? renderBody(q.solution, { images: q.images || {}, overlays: q.overlays || {}, bigInline: meta.bigInline }) : '<div class="p" style="color:#888">(해설 없음)</div>';
           solHtml.push(`<div class="sol"><div class="solhd">${nums[q.id]}. <span class="ans">[정답] ${esc(answerText(q)) || "—"}</span></div>${body}</div>`);
           solItems.push(q.id);
         })
@@ -364,7 +486,8 @@
   function answerKeyPage(state, nums, secs) {
     const meta = state.meta;
     let html = `<div class="key-title">정답 및 배점</div>`;
-    secs.forEach((sec) => {
+    secs.forEach((sec0) => {
+      const sec = Object.assign({}, sec0, { questions: sec0.questions.filter(isQ) });
       if (!sec.questions.length) return;
       const name = sec.subtitle ? `${sec.name || ""} (${sec.subtitle})` : sec.name || "";
       const rows = [];
@@ -385,5 +508,5 @@
     return `<div class="page" style="${pageStyle(meta)}">${headerNormal(esc(meta.subject || "정답표"), null)}<div style="padding-top:4mm">${html}</div></div>`;
   }
 
-  global.ExamLayout = { build, numbering, answerText, fmtPoints };
+  global.ExamLayout = { build, numbering, passageRanges, passageHeading, answerText, fmtPoints, isQ, geo: () => lastGeo };
 })(window);

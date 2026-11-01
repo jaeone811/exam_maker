@@ -23,8 +23,9 @@
       });
       s.id = s.id || T.uid("s");
       s.questions = (s.questions || []).map((q) => {
-        const nq = Object.assign(T.newQuestion(), q);
+        const nq = Object.assign(q.kind === "passage" ? T.newPassage() : T.newQuestion(), q);
         nq.id = q.id || T.uid("q");
+        nq.overlays = nq.overlays || {};
         if (!Array.isArray(nq.choices)) nq.choices = ["", "", "", "", ""];
         while (nq.choices.length < 5) nq.choices.push("");
         nq.images = nq.images || {};
@@ -87,14 +88,24 @@
 
   function renderList() {
     const nums = L.numbering(state.sections);
+    const ranges = L.passageRanges(state.sections, nums);
     let total = 0;
     const cards = state.sections
       .map((sec, si) => {
-        const sum = sec.questions.reduce((s, q) => s + (Number(q.points) || 0), 0);
+        const qs = sec.questions.filter(L.isQ);
+        const sum = qs.reduce((s, q) => s + (Number(q.points) || 0), 0);
         if (sec.include !== false) total += sum;
         const items = sec.questions
           .map((q) => {
             const sn = snippet(q.text);
+            if (!L.isQ(q)) {
+              const r = ranges[q.id];
+              return `<div class="qitem psg${q.id === selId ? " on" : ""}" data-qid="${q.id}" tabindex="0">
+                <span class="n">지문</span>
+                <span class="t${sn ? "" : " empty"}">${sn ? esc(sn) : "(비어 있음)"}</span>
+                <span class="badges"><span class="badge psg">${r ? (r[0] === r[1] ? r[0] : r[0] + "~" + r[1]) : "문항 없음"}</span></span>
+              </div>`;
+            }
             const noAns = q.answer === "" || q.answer == null;
             return `<div class="qitem${q.id === selId ? " on" : ""}" data-qid="${q.id}" tabindex="0">
               <span class="n">${nums[q.id]}</span>
@@ -107,9 +118,9 @@
           .join("");
         const nm = esc(sec.name || "묶음") + (sec.subtitle ? ` (${esc(sec.subtitle)})` : "");
         return `<div class="sec-card" data-si="${si}">
-          <div class="sec-head"><span class="nm" title="${nm}">${nm}${sec.include === false ? ' <span class="badge">인쇄 제외</span>' : ""}</span><span class="sum">${sec.questions.length}문항 · ${+sum.toFixed(2)}점</span></div>
+          <div class="sec-head"><span class="nm" title="${nm}">${nm}${sec.include === false ? ' <span class="badge">인쇄 제외</span>' : ""}</span><span class="sum">${qs.length}문항 · ${+sum.toFixed(2)}점</span></div>
           ${items}
-          <div class="sec-foot"><button class="sm" data-add="mc" data-si="${si}" type="button">+ 객관식</button><button class="sm" data-add="short" data-si="${si}" type="button">+ 단답형</button></div>
+          <div class="sec-foot"><button class="sm" data-add="mc" data-si="${si}" type="button">+ 객관식</button><button class="sm" data-add="short" data-si="${si}" type="button">+ 단답형</button><button class="sm" data-add="passage" data-si="${si}" type="button" title="국어처럼 여러 문항이 함께 보는 글">+ 지문</button></div>
         </div>`;
       })
       .join("");
@@ -123,8 +134,8 @@
     const add = e.target.closest("[data-add]");
     if (add) {
       const sec = state.sections[+add.dataset.si];
-      const last = sec.questions[sec.questions.length - 1];
-      const nq = T.newQuestion({ type: add.dataset.add, points: last ? last.points : 3 });
+      const last = sec.questions.filter(L.isQ).pop();
+      const nq = add.dataset.add === "passage" ? T.newPassage() : T.newQuestion({ type: add.dataset.add, points: last ? last.points : 3 });
       sec.questions.push(nq);
       select(nq.id);
       changed();
@@ -198,6 +209,7 @@
       return;
     }
     const { sec, q } = f;
+    if (!L.isQ(q)) return renderPassageEditor(f);
     const nums = L.numbering(state.sections);
     const slotMode = state.meta.layout === "slots";
     const secName = esc(sec.name || "") + (sec.subtitle ? ` · ${esc(sec.subtitle)}` : "");
@@ -209,12 +221,7 @@
         } title="정답으로 지정"></div>`
       )
       .join("");
-    const imgs = Object.keys(q.images || {})
-      .sort((a, b) => a - b)
-      .map(
-        (k) => `<div class="imgcard"><img src="${q.images[k]}" alt="그림 ${k}"><code>[그림${k}]</code><div class="row"><button class="sm" type="button" data-imgins="${k}">넣기</button><button class="sm danger" type="button" data-imgdel="${k}">삭제</button></div></div>`
-      )
-      .join("");
+    const imgs = imagesHtml(q);
 
     ed.innerHTML = `
       <div class="ed-head">
@@ -238,27 +245,7 @@
       </div>
 
       <div class="field"><span>문제 본문 <span class="muted" style="font-weight:400">— 배점 [n점]은 마지막 문장 끝에 자동으로 붙음</span></span></div>
-      <div class="toolbar" id="tb">
-        <button type="button" data-w="$|$" title="선택한 글자를 수식으로">$수식$</button>
-        <button type="button" data-blk="$$ | $$" title="한 줄 들여쓴 수식">줄 수식</button>
-        <select id="snip" title="수식 조각 넣기"><option value="">수식 조각…</option>${SNIPPETS.map((s, i) => `<option value="${i}">${esc(s[0])}  ${esc(s[1])}</option>`).join("")}</select>
-        <span class="sep"></span>
-        <button type="button" data-blk="[조건]\n(가) |\n(나) \n[/조건]">조건 상자</button>
-        <button type="button" data-blk="[보기]\nㄱ. |\nㄴ. \nㄷ. \n[/보기]">&lt;보기&gt;</button>
-        <button type="button" data-blk="[박스 자료 제목]\n|\n[/박스]">자료 상자</button>
-        <button type="button" data-blk="[표 머리]\n구분 | A | B\n| 1 | 2\n[/표]">표</button>
-        <button type="button" data-blk="[나란히]\n|\n[|]\n\n[/나란히]">나란히</button>
-        <button type="button" id="btnImg">그림 올리기</button>
-        <input type="file" id="imgFile" accept="image/*" hidden>
-        <span class="sep"></span>
-        <button type="button" data-w="**|**"><b>굵게</b></button>
-        <button type="button" data-w="__|__"><u>밑줄</u></button>
-        <button type="button" data-w="[[|]]" title="네모 칸 (빈칸 (가) 등)">[네모]</button>
-        <button type="button" data-line="[가운데] ">가운데</button>
-        <button type="button" data-line="[들여] ">들여쓰기</button>
-        <button type="button" data-ins="[점수]" title="배점이 들어갈 위치를 직접 지정">배점 위치</button>
-        <select id="sym" title="기호 넣기"><option value="">기호…</option>${SYMBOLS.map((s) => `<option>${esc(s)}</option>`).join("")}</select>
-      </div>
+      ${toolbarHtml(false)}
       <textarea id="qText" spellcheck="false">${esc(q.text)}</textarea>
 
       ${
@@ -277,6 +264,73 @@
       <div class="imgs">${imgs || '<span class="muted">올린 그림 없음</span>'}</div>
 
       <label class="field" style="margin-top:14px"><span>해설 (해설지 페이지에 들어감)</span><textarea id="qSol" spellcheck="false">${esc(q.solution || "")}</textarea></label>
+    `;
+  }
+
+  function toolbarHtml(passage) {
+    return `<div class="toolbar" id="tb">
+        <button type="button" data-w="$|$" title="선택한 글자를 수식으로">$수식$</button>
+        <button type="button" data-blk="$$ | $$" title="한 줄 들여쓴 수식">줄 수식</button>
+        <select id="snip" title="수식 조각 넣기"><option value="">수식 조각…</option>${SNIPPETS.map((s, i) => `<option value="${i}">${esc(s[0])}  ${esc(s[1])}</option>`).join("")}</select>
+        <span class="sep"></span>
+        <button type="button" data-blk="[조건]\n(가) |\n(나) \n[/조건]">조건 상자</button>
+        <button type="button" data-blk="[보기]\nㄱ. |\nㄴ. \nㄷ. \n[/보기]">&lt;보기&gt;</button>
+        <button type="button" data-blk="[박스 자료 제목]\n|\n[/박스]">자료 상자</button>
+        <button type="button" data-blk="[표 머리]\n구분 | A | B\n| 1 | 2\n[/표]">표</button>
+        <button type="button" data-blk="[나란히]\n|\n[|]\n\n[/나란히]">나란히</button>
+        <button type="button" data-blk="[대화]\n갑: |\n을: \n[/대화]" title="갑·을 말풍선 대화">대화</button>
+        <button type="button" id="btnImg" title="Ctrl+V로 캡처 이미지를 바로 붙여넣어도 됨">그림 올리기</button>
+        <input type="file" id="imgFile" accept="image/*" hidden>
+        <span class="sep"></span>
+        <button type="button" data-w="**|**"><b>굵게</b></button>
+        <button type="button" data-w="__|__"><u>밑줄</u></button>
+        <button type="button" data-w="[[|]]" title="네모 칸 (빈칸 (가) 등)">[네모]</button>
+        <button type="button" data-line="[가운데] ">가운데</button>
+        <button type="button" data-line="[들여] ">들여쓰기</button>
+        ${passage ? "" : `<button type="button" data-ins="[점수]" title="배점이 들어갈 위치를 직접 지정">배점 위치</button>`}
+        <select id="sym" title="기호 넣기"><option value="">기호…</option>${SYMBOLS.map((s) => `<option>${esc(s)}</option>`).join("")}</select>
+      </div>`;
+  }
+
+  function imagesHtml(q) {
+    return Object.keys(q.images || {})
+      .sort((a, b) => a - b)
+      .map(
+        (k) => `<div class="imgcard"><img src="${q.images[k]}" alt="그림 ${k}"><code>[그림${k}]</code><div class="row"><button class="sm" type="button" data-imgins="${k}">넣기</button><button class="sm" type="button" data-imgov="${k}" title="말풍선 채우기·글자 가리기·자르기">글 넣기</button><button class="sm danger" type="button" data-imgdel="${k}">삭제</button></div>${
+          (q.overlays && q.overlays[k] && q.overlays[k].length) ? `<span class="muted">글상자 ${q.overlays[k].length}개</span>` : ""
+        }</div>`
+      )
+      .join("");
+  }
+
+  function renderPassageEditor(f) {
+    const { sec, q } = f;
+    const nums = L.numbering(state.sections);
+    const r = L.passageRanges(state.sections, nums)[q.id];
+    const secName = esc(sec.name || "") + (sec.subtitle ? ` · ${esc(sec.subtitle)}` : "");
+    const imgs = imagesHtml(q);
+    $("#editor").innerHTML = `
+      <div class="ed-head">
+        <h2>지문 ${r ? (r[0] === r[1] ? `[${r[0]}]` : `[${r[0]}~${r[1]}]`) : ""}<small>${secName}</small></h2>
+        <button type="button" class="sm" data-act="up" title="위로">▲</button>
+        <button type="button" class="sm" data-act="down" title="아래로">▼</button>
+        <button type="button" class="sm" data-act="dup">복제</button>
+        <button type="button" class="sm" data-act="insert">아래에 새 문항</button>
+        <button type="button" class="sm danger" data-act="del">삭제</button>
+      </div>
+      <p class="hint">지문은 번호 없이 바로 아래 문항들과 묶임. 목록에서 지문 뒤에 문항을 두면 머리말의 [1~3] 범위가 자동으로 계산됨. 단·쪽이 모자라면 글줄 단위로 끊어서 다음 단에 이어 실림 (밀집형 배치일 때).</p>
+      <label class="field"><span>머리말 — {범위} 자리에 [1~3]이 들어감</span><input type="text" id="pHead" value="${esc(q.heading || "")}" placeholder="{범위} 다음 글을 읽고 물음에 답하시오."></label>
+      <div class="row">
+        <label class="field"><span>묶을 문항 수</span><input type="number" id="pCount" min="1" value="${esc(q.count)}" placeholder="다음 지문 전까지"></label>
+        <label class="field"><span>시작 위치</span><select id="qBreak">
+          <option value="">자동</option><option value="column"${q.breakBefore === "column" ? " selected" : ""}>다음 단에서</option><option value="page"${q.breakBefore === "page" ? " selected" : ""}>다음 쪽에서</option></select></label>
+        <div class="field"><label class="check"><input type="checkbox" id="pIndent" ${q.indent !== false ? "checked" : ""}> 문단 첫 줄 들여쓰기</label></div>
+      </div>
+      <div class="field"><span>지문 <span class="muted" style="font-weight:400">— 한 줄 = 한 문단, 빈 줄 = 문단 사이 띄움(시의 연 구분 등). 시는 들여쓰기를 끄셈</span></span></div>
+      ${toolbarHtml(true)}
+      <textarea id="qText" spellcheck="false" style="min-height:360px">${esc(q.text)}</textarea>
+      <div class="field" style="margin-top:14px"><span>그림</span></div>
+      <div class="imgs">${imgs || '<span class="muted">올린 그림 없음</span>'}</div>
     `;
   }
 
@@ -313,6 +367,9 @@
     else if (t.id === "qAns") q.answer = t.value;
     else if (t.dataset.ch != null) q.choices[+t.dataset.ch] = t.value;
     else if (t.name === "ans") q.answer = Number(t.value);
+    else if (t.id === "pHead") q.heading = t.value;
+    else if (t.id === "pCount") q.count = t.value === "" ? "" : Number(t.value);
+    else if (t.id === "pIndent") q.indent = t.checked;
     else return;
     changed();
   });
@@ -373,8 +430,11 @@
       const s = ta.selectionStart;
       const atLineStart = s === 0 || ta.value[s - 1] === "\n";
       insertText(ta, (atLineStart ? "" : "\n") + `[그림${b.dataset.imgins} 60%]\n`, "");
+    } else if (b.dataset.imgov) {
+      openOverlay(q, b.dataset.imgov);
     } else if (b.dataset.imgdel) {
       delete q.images[b.dataset.imgdel];
+      if (q.overlays) delete q.overlays[b.dataset.imgdel];
       renderEditor();
       changed();
     } else if (b.id === "fillBogi") {
@@ -416,7 +476,7 @@
         renderEditor();
         changed();
       } else if (act === "dup" || act === "insert") {
-        const nq = act === "dup" ? JSON.parse(JSON.stringify(q)) : T.newQuestion({ type: q.type, points: q.points });
+        const nq = act === "dup" ? JSON.parse(JSON.stringify(q)) : T.newQuestion(L.isQ(q) ? { type: q.type, points: q.points } : {});
         nq.id = T.uid("q");
         sec.questions.splice(idx + 1, 0, nq);
         selId = nq.id;
@@ -442,6 +502,43 @@
       }
     }
   });
+
+  // 캡처한 그림을 Ctrl+V로 바로 붙여넣기
+  editor.addEventListener("paste", (e) => {
+    const f = selId && find(selId);
+    if (!f || !e.clipboardData) return;
+    const file = Array.from(e.clipboardData.files || []).find((x) => x.type.startsWith("image/"));
+    if (!file) return;
+    e.preventDefault();
+    addImage(f.q, file);
+  });
+
+  function figWidthPct(q, k) {
+    const m = String(q.text || "").match(new RegExp("\\[그림\\s*" + k + "(?:\\s+[^\\]]*?)?(\\d{1,3})%"));
+    return m ? Number(m[1]) : 70;
+  }
+
+  function openOverlay(q, k) {
+    const geo = L.geo();
+    const colW = geo ? geo.w : 300;
+    window.OverlayEditor.open({
+      key: k,
+      src: q.images[k],
+      overlays: (q.overlays && q.overlays[k]) || [],
+      widthPx: (colW * figWidthPct(q, k)) / 100,
+      fontSize: Number(state.meta.fontSize) || 8.5,
+      onChange: (list) => {
+        q.overlays = q.overlays || {};
+        q.overlays[k] = list;
+        changed({ list: false });
+      },
+      onCrop: (src) => {
+        q.images[k] = src;
+        renderEditor();
+        changed({ list: false });
+      },
+    });
+  }
 
   function addImage(q, file) {
     const reader = new FileReader();
@@ -621,6 +718,9 @@
       ["[표 머리 전체] … [/표]", "칸은 | 로 구분. 머리=첫 줄 음영, 전체=폭 100%, !칸=음영, {2}칸=2칸 병합, {1x2}=세로 2칸 병합, ^=병합된 자리"],
       ["[그림1 60% 오른쪽 설명]", "올린 그림. 폭%, 정렬(왼쪽/가운데/오른쪽), 뒤 글자는 캡션"],
       ["[나란히] A [|] B [/나란히]", "그림·표·상자를 옆으로 나란히"],
+      ["[대화] 갑: … / 을: … [/대화]", "말풍선 대화. [대화 교대]는 좌우 번갈아"],
+      ["그림 → [글 넣기]", "실제 시험지 그림의 말풍선에 글상자 채우기, 흰 가리개로 원래 글 지우기, 자르기. 캡처는 Ctrl+V로 바로 붙여넣기"],
+      ["[+ 지문]", "국어식 지문. 한 줄 = 한 문단, 뒤 문항 번호로 [1~3] 자동, 단이 모자라면 줄 단위로 이어 실음"],
       ["[점수]", "배점 [3점]이 들어갈 자리 직접 지정 (안 쓰면 마지막 문장 끝)"],
     ];
     $("#pane-help").innerHTML = `

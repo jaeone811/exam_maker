@@ -9,9 +9,13 @@
 
   function q(over) {
     return Object.assign(
-      { id: uid("q"), type: "mc", points: 3, text: "", choices: ["", "", "", "", ""], answer: "", solution: "", breakBefore: "", slots: "", images: {} },
+      { id: uid("q"), kind: "q", type: "mc", points: 3, text: "", choices: ["", "", "", "", ""], answer: "", solution: "", breakBefore: "", slots: "", images: {}, overlays: {} },
       over || {}
     );
+  }
+  /** 지문 (국어 등): 번호 없이 뒤따르는 문항들에 묶임 */
+  function passage(over) {
+    return Object.assign({ id: uid("p"), kind: "passage", heading: "", count: "", indent: true, text: "", breakBefore: "", slots: "", images: {}, overlays: {} }, over || {});
   }
   function sec(over) {
     return Object.assign({ id: uid("s"), name: "공통", subtitle: "", startNo: "", restartPage: true, include: true, questions: [] }, over || {});
@@ -176,6 +180,37 @@
         solution: "국회는 국정 감사·조사, 법원은 명령·규칙·처분 심사로 행정부를 견제한다.",
       }),
     ];
+    qs.push(
+      q({
+        points: 3,
+        text: "갑, 을의 주장에 대한 설명으로 옳은 것은?\n[그림1 92%]",
+        images: { 1: TALK_SVG },
+        overlays: {
+          1: [
+            { x: 3, y: 5, w: 42, h: 45, text: "갑: 법은 최소한의 도덕이야. 법은 도덕 중에서 꼭 지켜야 할 일부를 강제하는 거지.", size: 7.5, align: "left", valign: "center", bg: "" },
+            { x: 55, y: 5, w: 42, h: 45, text: "을: 법과 도덕은 구별돼. 법은 외면적 행위를, 도덕은 내면의 동기를 다뤄.", size: 7.5, align: "left", valign: "center", bg: "" },
+            { x: 9, y: 88, w: 12, h: 11, text: "갑", size: 7.5, bg: "white" },
+            { x: 78, y: 88, w: 12, h: 11, text: "을", size: 7.5, bg: "white" },
+          ],
+        },
+        choices: [
+          "갑은 법이 도덕의 일부를 강제한다고 본다.",
+          "을은 법과 도덕이 언제나 일치한다고 본다.",
+          "갑은 도덕의 범위가 법보다 좁다고 본다.",
+          "을은 법이 내면의 동기만을 규율한다고 본다.",
+          "갑, 을 모두 도덕의 존재를 부정한다.",
+        ],
+        answer: 1,
+        solution: "갑은 '법은 최소한의 도덕'이라는 입장이다.",
+      }),
+      q({
+        points: 2,
+        text: "교사의 질문에 옳게 답한 학생만을 있는 대로 고른 것은?\n[대화]\n교사: 우리나라 국회의원의 임기는 몇 년인가요?\n갑: 4년입니다.\n을: 5년입니다.\n병: 6년입니다.\n[/대화]",
+        choices: ["갑", "을", "병", "갑, 을", "을, 병"],
+        answer: 1,
+        solution: "헌법 제42조: 국회의원의 임기는 4년으로 한다.",
+      })
+    );
     for (let k = qs.length; k < 20; k++) qs.push(q({ points: k % 2 ? 3 : 2 }));
     return {
       meta: Object.assign({}, baseMeta, {
@@ -194,6 +229,100 @@
       }),
       sections: [sec({ name: "과목", subtitle: "정치와 법", questions: qs })],
     };
+  }
+
+  /* 학생 두 명 + 빈 말풍선 그림 (예시용으로 직접 그린 SVG) */
+  const TALK_SVG =
+    "data:image/svg+xml;charset=utf-8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300">
+<rect width="600" height="300" fill="#fff"/>
+<g fill="#fff" stroke="#000" stroke-width="2.2" stroke-linejoin="round">
+<path d="M32 10h226a22 22 0 0 1 22 22v106a22 22 0 0 1-22 22H112l-17 36-2-36H32a22 22 0 0 1-22-22V32a22 22 0 0 1 22-22z"/>
+<path d="M342 10h226a22 22 0 0 1 22 22v106a22 22 0 0 1-22 22H522l-15 36-4-36H342a22 22 0 0 1-22-22V32a22 22 0 0 1 22-22z"/>
+<path d="M55 300q0-55 40-58t40 58z" fill="#e4e4e4"/><circle cx="95" cy="218" r="22" fill="#f2f2f2"/>
+<path d="M465 300q0-55 40-58t40 58z" fill="#e4e4e4"/><circle cx="505" cy="218" r="22" fill="#f2f2f2"/>
+</g></svg>`
+    );
+
+  function sampleKorean() {
+    const psg = passage({
+      text: [
+        "바람은 공기가 수평 방향으로 움직이는 현상이다. 지표면이 고르게 가열되지 않으면 장소에 따라 기압 차이가 생기고, 공기는 기압이 높은 곳에서 낮은 곳으로 이동한다. 이때 두 지점 사이의 기압 차이를 거리로 나눈 값을 기압 경도라고 하며, 기압 경도에 의해 공기에 작용하는 힘을 기압 경도력이라고 한다. 기압 경도가 클수록 기압 경도력이 커지므로 바람도 강해진다.",
+        "그런데 실제 바람은 기압 경도력의 방향으로만 불지 않는다. 지구가 자전하기 때문에 지구 위에서 움직이는 물체는 그 운동 방향이 휘는 것처럼 보이는데, 이를 설명하기 위해 도입한 가상의 힘을 전향력이라고 한다. 전향력은 북반구에서는 물체가 움직이는 방향의 오른쪽 직각 방향으로, 남반구에서는 왼쪽 직각 방향으로 작용한다. 전향력은 운동하는 물체에만 작용하며, 그 크기는 물체의 속력이 빠를수록, 그리고 위도가 높을수록 커진다. 적도에서는 전향력이 작용하지 않는다.",
+        "지표면의 영향을 거의 받지 않는 높은 상공에서는 기압 경도력과 전향력이 평형을 이룬 상태로 바람이 부는데, 이 바람을 지균풍이라고 한다. 지균풍은 등압선과 나란하게 분다. 한편 지표면 가까이에서는 지표면과의 마찰력이 추가로 작용한다. 마찰력은 바람의 반대 방향으로 작용하여 풍속을 줄이고, 풍속이 줄면 전향력도 작아진다. 그 결과 지상풍은 등압선을 비스듬히 가로질러 기압이 낮은 쪽으로 불게 된다.",
+      ].join("\n"),
+    });
+    const qs = [
+      psg,
+      q({
+        points: 2,
+        text: "윗글의 내용과 일치하지 __않는__ 것은?",
+        choices: [
+          "기압 경도가 클수록 바람이 강해진다.",
+          "전향력은 정지해 있는 물체에는 작용하지 않는다.",
+          "적도에서는 전향력이 작용하지 않는다.",
+          "지균풍은 등압선과 나란하게 분다.",
+          "마찰력은 풍속을 증가시켜 전향력을 크게 만든다.",
+        ],
+        answer: 5,
+        solution: "마찰력은 풍속을 줄이고, 그 결과 전향력도 작아진다.",
+      }),
+      q({
+        points: 3,
+        text: "윗글을 바탕으로 <보기>를 이해한 내용으로 적절하지 __않은__ 것은?\n[보기]\n북반구 중위도의 한 지역에서 높은 상공의 A 지점과 지표 부근의 B 지점에서 바람을 관측하였다. 두 지점의 기압 경도는 같다.\n[/보기]",
+        choices: [
+          "A 지점의 바람은 등압선과 나란하게 불 것이다.",
+          "B 지점에서는 마찰력이 바람의 반대 방향으로 작용할 것이다.",
+          "B 지점의 풍속은 A 지점의 풍속보다 빠를 것이다.",
+          "A 지점에서 전향력은 바람 방향의 오른쪽 직각 방향으로 작용할 것이다.",
+          "B 지점의 바람은 등압선을 가로질러 기압이 낮은 쪽으로 불 것이다.",
+        ],
+        answer: 3,
+        solution: "지표 부근은 마찰력 때문에 풍속이 줄어든다.",
+      }),
+      q({
+        points: 2,
+        text: "윗글을 읽고 답할 수 있는 질문이 __아닌__ 것은?",
+        choices: [
+          "기압 경도력이란 무엇인가?",
+          "전향력의 크기는 무엇에 따라 달라지는가?",
+          "지균풍은 어떤 방향으로 부는가?",
+          "지상풍이 등압선을 가로질러 부는 까닭은 무엇인가?",
+          "태풍의 중심부에서 기압이 낮아지는 까닭은 무엇인가?",
+        ],
+        answer: 5,
+        solution: "태풍에 대한 내용은 윗글에 없다.",
+      }),
+    ];
+    return {
+      meta: Object.assign({}, baseMeta, {
+        examTitle: "2027학년도 나만의 모의평가 문제지",
+        period: "제 1 교시",
+        subject: "국어 영역",
+        layout: "flow",
+        fontSize: 8.5,
+        lineHeight: 1.7,
+        showTwoPoint: false,
+        autoTypeLabel: false,
+        bigInline: false,
+        flowGap: 6,
+      }),
+      sections: [sec({ name: "공통", questions: qs })],
+    };
+  }
+
+  function koreanSkeleton() {
+    const d = sampleKorean();
+    const common = [passage({ count: 3 })];
+    for (let n = 1; n <= 34; n++) common.push(q({ points: 2 }));
+    const elective = (name) => {
+      const list = [passage({ count: 3 })];
+      for (let n = 35; n <= 45; n++) list.push(q({ points: 2 }));
+      return sec({ name: "선택", subtitle: name, startNo: 35, questions: list });
+    };
+    d.sections = [sec({ name: "공통", questions: common }), elective("화법과 작문"), elective("언어와 매체")];
+    return d;
   }
 
   const TEMPLATES = [
@@ -222,7 +351,14 @@
         return { meta: Object.assign({}, baseMeta, { examTitle: "나만의 수학 모의고사 문제지" }), sections: [sec({ name: "수학", questions: list })] };
       },
     },
-    { id: "sample-inquiry", name: "예시: 탐구 20문항 (학평 스타일)", desc: "성명·수험번호란, 밀집 배치, 자료 박스. 50점 만점", make: sampleInquiry },
+    { id: "sample-korean", name: "예시: 국어 (지문 + 문항 3개)", desc: "지문이 단을 넘어가면 줄 단위로 끊어서 이어 실림", make: sampleKorean },
+    {
+      id: "korean-full",
+      name: "국어 45문항 (공통 34 + 선택 11)",
+      desc: "공통 1~34, 화법과 작문 / 언어와 매체 35~45. 지문 칸 포함. 배점은 문항마다 조정",
+      make: koreanSkeleton,
+    },
+    { id: "sample-inquiry", name: "예시: 탐구 20문항 (학평 스타일)", desc: "성명·수험번호란, 밀집 배치, 자료 상자, 말풍선 그림·대화. 50점 만점", make: sampleInquiry },
     {
       id: "inquiry-blank",
       name: "탐구 20문항 빈 틀",
@@ -248,5 +384,5 @@
     return { version: 1, meta: d.meta, sections: d.sections };
   }
 
-  global.ExamTemplates = { TEMPLATES, fromTemplate, newQuestion: q, newSection: sec, uid, baseMeta };
+  global.ExamTemplates = { TEMPLATES, fromTemplate, newQuestion: q, newPassage: passage, newSection: sec, uid, baseMeta };
 })(window);

@@ -154,7 +154,7 @@ legend { font-weight: 700; font-size: 12.5px; padding: 0 4px; }
 .choice-row .cn { font-size: 15px; text-align: center; }
 .choice-row input[type="radio"] { margin: 0 auto; accent-color: var(--accent); }
 .imgs { display: flex; flex-wrap: wrap; gap: 8px; }
-.imgcard { border: 1px solid var(--line); border-radius: 6px; padding: 4px; width: 110px; font-size: 11.5px; display: grid; gap: 3px; }
+.imgcard { border: 1px solid var(--line); border-radius: 6px; padding: 4px; width: 172px; font-size: 11.5px; display: grid; gap: 3px; }
 .imgcard img { width: 100%; height: 70px; object-fit: contain; background: #fafafa; }
 .imgcard code { font-family: var(--mono); font-size: 11px; }
 .empty-ed { color: var(--muted); padding: 40px 10px; text-align: center; }
@@ -191,6 +191,34 @@ dialog::backdrop { background: rgba(20, 24, 30, .45); }
 .tpl b { font-size: 14px; }
 .tpl span { font-size: 12px; color: var(--muted); }
 .dlg-actions { display: flex; justify-content: flex-end; }
+
+/* 그림에 글 넣기 */
+dialog.ov-dialog { width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.ovd { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+.ovd-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ovd-head h2 { margin: 0; font-size: 16px; }
+.ovd-head .muted { font-size: 12px; margin-right: auto; }
+.ovd-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; flex: 1; }
+.ovd-stage-wrap { overflow: auto; padding: 12px; background: var(--bg); min-height: 360px; }
+.ovd-sizer { position: relative; margin: 0 auto; }
+#ovScaler { transform-origin: 0 0; position: absolute; left: 0; top: 0; }
+#ovStage { touch-action: none; user-select: none; }
+#ovStage img { pointer-events: none; }
+#ovStage .ove { outline: 1px dashed rgba(37, 99, 235, .7); cursor: move; }
+#ovStage .ove.eraser { background: repeating-linear-gradient(45deg, #fff 0 4px, #f1f3f6 4px 8px) !important; }
+#ovStage .ove.on { outline: 1.5px solid #2563eb; }
+#ovStage .rh { position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; background: #2563eb; cursor: nwse-resize; }
+#ovStage.cropping { cursor: crosshair; }
+#ovStage.cropping .ove { pointer-events: none; opacity: .5; }
+#ovStage .crop-rect { position: absolute; outline: 1.5px dashed var(--accent); background: rgba(200, 37, 58, .08); pointer-events: none; }
+.ovd-side { padding: 12px 14px; overflow: auto; border-left: 1px solid var(--line); }
+.ovd-side textarea { width: 100%; font-family: var(--ui); }
+@media (max-width: 760px) { .ovd-body { grid-template-columns: 1fr; } .ovd-side { border-left: 0; border-top: 1px solid var(--line); } }
+
+/* 목록의 지문 항목 */
+.qitem.psg { background: #faf7ef; }
+.qitem.psg.on { background: var(--sel); }
+.badge.psg { background: #f3e8c8; color: #6b4e00; }
 
 /* 좁은 화면: 세로로 쌓기 */
 @media (max-width: 1100px) {

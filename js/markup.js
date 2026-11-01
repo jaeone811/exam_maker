@@ -121,6 +121,29 @@
         continue;
       }
 
+      // 대화: [대화] 갑: … / 을: … [/대화]   ([대화 교대] 는 좌우 번갈아)
+      m = t.match(/^\[대화(?:\s+(.*?))?\]$/);
+      if (m) {
+        const alt = /교대/.test(m[1] || "");
+        let j = i + 1;
+        let k = 0;
+        let rows = "";
+        for (; j < lines.length; j++) {
+          const tt = lines[j].trim();
+          if (tt === "[/대화]") break;
+          if (!tt) continue;
+          const sm = tt.match(/^([^:：]{1,8})\s*[:：]\s*(.*)$/);
+          const who = sm ? sm[1].trim() : "";
+          const say = sm ? sm[2] : tt;
+          const right = alt && k % 2 === 1;
+          rows += `<div class="tk${right ? " rt" : ""}">${who ? `<span class="who">${inline(who, ctx)}</span>` : ""}<div class="bub">${inline(say, ctx)}</div></div>`;
+          k++;
+        }
+        pushOther(`<div class="talk">${rows}</div>`);
+        i = j + 1;
+        continue;
+      }
+
       // 표
       m = t.match(/^\[표(?:\s+(.*?))?\]$/);
       if (m) {
@@ -176,7 +199,7 @@
         const w = o.width || "70%";
         const cap = o.rest.length ? `<div class="cap">${inline(o.rest.join(" "), ctx)}</div>` : "";
         const img = src
-          ? `<img src="${src}" style="width:${w}" alt="그림 ${m[1]}">`
+          ? `<span class="figbox" style="width:${w}"><img src="${src}" alt="그림 ${m[1]}">${overlaysHtml((ctx.overlays || {})[m[1]], ctx)}</span>`
           : `<span class="missing">그림 ${esc(m[1])} 없음 — 편집기에서 그림을 올려 주세요</span>`;
         pushOther(`<div class="fig${cls}">${img}${cap}</div>`);
         i++;
@@ -229,6 +252,15 @@
         cls = { 가운데: "center", 오른쪽: "right", 들여: "indent" }[am[1]];
         text = text.slice(am[0].length);
       }
+      if (ctx.passage) {
+        // 지문: 한 줄 = 한 문단 (첫 줄 들여쓰기, 양쪽 정렬)
+        flush();
+        const pc = cls || (ctx.indent ? "pp" : "pp noind");
+        out.push({ kind: "p", cls: (pc + (gapNext ? " gap" : "")).trim(), parts: [inline(text, ctx)] });
+        gapNext = false;
+        i++;
+        continue;
+      }
       if (para && para.baseCls !== cls) flush();
       if (!para) {
         para = { cls: (cls + (gapNext ? " gap" : "")).trim(), lines: [], baseCls: cls };
@@ -265,6 +297,33 @@
     return cells;
   }
 
+  /** 그림 위 글상자(말풍선 채우기·가리개) */
+  function overlaysHtml(list, ctx) {
+    if (!Array.isArray(list) || !list.length) return "";
+    return list
+      .map((o) => {
+        const st = [
+          `left:${+o.x || 0}%`,
+          `top:${+o.y || 0}%`,
+          `width:${+o.w || 20}%`,
+          `height:${+o.h || 10}%`,
+          `font-size:${+o.size || 8}pt`,
+          `text-align:${o.align === "left" ? "left" : o.align === "right" ? "right" : "center"}`,
+          `justify-content:${o.valign === "top" ? "flex-start" : o.valign === "bottom" ? "flex-end" : "center"}`,
+          o.bg === "white" ? "background:#fff" : "",
+          o.lh ? `line-height:${+o.lh}` : "",
+        ]
+          .filter(Boolean)
+          .join(";");
+        const body = String(o.text || "")
+          .split("\n")
+          .map((l) => inline(l, ctx))
+          .join("<br>");
+        return `<div class="ov" style="${st}"><div>${body}</div></div>`;
+      })
+      .join("");
+  }
+
   function pHtml(b) {
     return `<div class="p${b.cls ? " " + b.cls : ""}">${b.parts.join("<br>")}</div>`;
   }
@@ -277,8 +336,19 @@
    * 문항 본문 전체 렌더링
    * opts: { number, points, images, bigInline }
    */
+  function makeCtx(opts) {
+    return { points: opts.points || "", images: opts.images || {}, overlays: opts.overlays || {}, bigInline: !!opts.bigInline, pointsUsed: false, passage: !!opts.passage, indent: opts.indent !== false };
+  }
+
+  /** 지문: 최상위 블록마다 따로 돌려줌 (단·쪽 사이에서 나눠 싣기 위해) */
+  function renderPassage(text, opts) {
+    const ctx = makeCtx(Object.assign({}, opts, { passage: true }));
+    const lines = String(text || "").replace(/\r/g, "").split("\n");
+    return parseLines(lines, 0, null, ctx).flushed.map((b) => ({ html: b.kind === "p" ? pHtml(b) : b.html, text: b.kind === "p" }));
+  }
+
   function renderBody(text, opts) {
-    const ctx = { points: opts.points || "", images: opts.images || {}, bigInline: !!opts.bigInline, pointsUsed: false };
+    const ctx = makeCtx(opts);
     const lines = String(text || "").replace(/\r/g, "").split("\n");
     const r = parseLines(lines, 0, null, ctx);
     const blocks = r.flushed;
@@ -305,5 +375,5 @@
     return blocksToHtml(blocks);
   }
 
-  global.ExamMarkup = { renderBody, inline: (s, o) => inline(s, Object.assign({ points: "", images: {}, bigInline: false }, o || {})), renderTex, esc };
+  global.ExamMarkup = { renderBody, renderPassage, overlaysHtml, inline: (s, o) => inline(s, Object.assign({ points: "", images: {}, bigInline: false }, o || {})), renderTex, esc };
 })(window);
