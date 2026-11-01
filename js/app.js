@@ -16,6 +16,9 @@
     if (!d || !Array.isArray(d.sections)) throw new Error("시험지 파일 형식이 아닙니다.");
     d.version = 1;
     d.meta = Object.assign({}, T.baseMeta, d.meta || {});
+    // 예전 파일: true/false 였던 설정을 새 방식으로 (true 는 '자동'으로 바꿔 국어·탐구에서 상자가 빠지게)
+    if (d.meta.autoTypeLabel === true) d.meta.autoTypeLabel = "auto";
+    if (d.meta.autoTypeLabel === false) d.meta.autoTypeLabel = "off";
     d.sections.forEach((s) => {
       const base = T.newSection();
       Object.keys(base).forEach((k) => {
@@ -634,7 +637,11 @@
       </fieldset>
       <fieldset><legend>표기</legend>
         ${chk("showTwoPoint", "2점 문항에도 [2점] 표시 (수학은 표시, 탐구는 보통 생략)")}
-        ${chk("autoTypeLabel", "유형이 바뀌는 곳에 '5지선다형 / 단답형' 표시")}
+        <label class="field"><span>'5지선다형 / 단답형' 상자</span><select data-k="autoTypeLabel">
+          <option value="auto"${m.autoTypeLabel === "auto" ? " selected" : ""}>자동 — 영역 이름에 '수학'이 있을 때만</option>
+          <option value="on"${m.autoTypeLabel === "on" ? " selected" : ""}>항상 표시</option>
+          <option value="off"${m.autoTypeLabel === "off" ? " selected" : ""}>표시 안 함</option></select></label>
+        <p class="hint">수능·모평에서 이 상자는 수학 영역에만 있음. 국어·탐구는 전부 5지선다형이라 없음.</p>
         <div class="row">${txt("mcLabel", "객관식 라벨")}${txt("shortLabel", "단답형 라벨")}</div>
         ${chk("showNotice", "묶음 끝에 '＊ 확인 사항' 상자")}
         ${chk("answerPage", "맨 뒤에 정답표 쪽 추가")}

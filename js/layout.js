@@ -41,6 +41,14 @@
     return `<div class="q">${lab}<div class="qbody">${body}</div>${choices}</div>`;
   }
 
+  /** '5지선다형 / 단답형' 상자는 수능·모평에서 수학 영역에만 있음 */
+  function showTypeLabels(meta) {
+    const v = meta.autoTypeLabel;
+    if (v === "on" || v === true) return true;
+    if (v === "off" || v === false) return false;
+    return /수학/.test(meta.subject || "");
+  }
+
   function titleHtml(meta, sec) {
     return esc(meta.subject || "") + (sec && sec.subtitle ? `<small>(${esc(sec.subtitle)})</small>` : "");
   }
@@ -429,7 +437,7 @@
           return;
         }
         let label = null;
-        if (meta.autoTypeLabel && q.type !== prevType) label = q.type === "mc" ? meta.mcLabel || "5지선다형" : meta.shortLabel || "단답형";
+        if (showTypeLabels(meta) && q.type !== prevType) label = q.type === "mc" ? meta.mcLabel || "5지선다형" : meta.shortLabel || "단답형";
         prevType = q.type;
         all.push({ si, q, html: questionHtml(q, nums[q.id], meta, label) });
       });
@@ -536,5 +544,5 @@
     return `<div class="page" style="${pageStyle(meta)}">${headerNormal(esc(meta.subject || "정답표"), null)}<div style="padding-top:4mm">${html}</div></div>`;
   }
 
-  global.ExamLayout = { build, numbering, passageRanges, passageHeading, answerText, fmtPoints, isQ, geo: () => lastGeo };
+  global.ExamLayout = { showTypeLabels, build, numbering, passageRanges, passageHeading, answerText, fmtPoints, isQ, geo: () => lastGeo };
 })(window);
