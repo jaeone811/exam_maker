@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>모의고사 메이커</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&family=Noto+Serif+KR:wght@400;700&display=swap">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<link rel="stylesheet" href="css/paper.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">모의고사 메이커</div>
+  <div class="tb-actions">
+    <button id="btnNew" type="button">새 시험지</button>
+    <button id="btnOpen" type="button">불러오기</button>
+    <button id="btnSave" type="button" title="Ctrl+S">저장(.json)</button>
+    <button id="btnPrint" class="primary" type="button" title="인쇄 창에서 'PDF로 저장' 선택">인쇄 · PDF</button>
+    <input id="fileOpen" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="tb-status" id="status" aria-live="polite"></div>
+</header>
+
+<main class="workspace">
+  <!-- 왼쪽: 시험 정보 / 문항 목록 -->
+  <aside class="side-panel">
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-tab="list" type="button" role="tab">문항</button>
+      <button class="tab" data-tab="meta" type="button" role="tab">시험 정보</button>
+      <button class="tab" data-tab="help" type="button" role="tab">문법</button>
+    </div>
+    <div class="tabpane" id="pane-list"></div>
+    <div class="tabpane" id="pane-meta" hidden></div>
+    <div class="tabpane help" id="pane-help" hidden></div>
+  </aside>
+
+  <!-- 가운데: 문항 편집 -->
+  <section class="editor" id="editor"></section>
+
+  <!-- 오른쪽: 미리보기 -->
+  <section class="preview-wrap">
+    <div class="pv-bar">
+      <span id="pvInfo">미리보기</span>
+      <label class="zoom">배율 <input id="zoom" type="range" min="30" max="130" step="5" value="62"> <span id="zoomVal">62%</span></label>
+    </div>
+    <div class="warnings" id="warnings" hidden></div>
+    <div class="preview" id="preview"><div id="pages"></div></div>
+  </section>
+</main>
+
+<!-- 새 시험지 대화상자 -->
+<dialog id="dlgNew">
+  <form method="dialog" class="dlg">
+    <h2>새 시험지</h2>
+    <p class="muted">틀을 고르면 지금 편집 중인 내용이 새 틀로 바뀝니다. 필요하면 먼저 저장하세요.</p>
+    <div id="tplList" class="tpl-list"></div>
+    <div class="dlg-actions"><button value="cancel" type="submit">닫기</button></div>
+  </form>
+</dialog>
+
+<div id="measure" aria-hidden="true"></div>
+
+<script src="js/markup.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
